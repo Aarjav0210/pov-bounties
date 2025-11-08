@@ -120,12 +120,14 @@ async def generate_upload_url(
     file_id = str(uuid.uuid4())
     
     try:
-        # Create S3 client
+        # Create S3 client with signature version 4 (required for presigned URLs)
+        from botocore.config import Config
         s3_client = boto3.client(
             's3',
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
-            region_name=os.getenv('AWS_REGION', 'us-east-1')
+            region_name=os.getenv('AWS_REGION', 'us-east-1'),
+            config=Config(signature_version='s3v4')
         )
         
         # Generate presigned URL (valid for 10 minutes)
@@ -255,11 +257,13 @@ async def submit_bounty_video(
     try:
         if aws_access_key and aws_secret_key:
             # Upload to S3
+            from botocore.config import Config
             s3_client = boto3.client(
                 's3',
                 aws_access_key_id=aws_access_key,
                 aws_secret_access_key=aws_secret_key,
-                region_name=os.getenv('AWS_REGION', 'us-east-1')
+                region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                config=Config(signature_version='s3v4')
             )
             
             # Upload file to S3
