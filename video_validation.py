@@ -1,6 +1,6 @@
 import torch
 import gc
-from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from transformers import Qwen2VLForConditionalGeneration, AutoProcessor, AutoTokenizer, AutoModelForCausalLM
 from pathlib import Path
 import cv2
 import numpy as np
@@ -11,16 +11,48 @@ from tqdm import tqdm
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 model_name = "Qwen/Qwen2-VL-7B-Instruct"
+text_model_name = "Qwen/Qwen2.5-14B-Instruct"
 
 def load_model():
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
-        model_name,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-        attn_implementation="flash_attention_2",
+    # Try to use flash_attention_2 if available, otherwise fall back to default
+    try:
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            model_name,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            attn_implementation="flash_attention_2",
         )
+        print("✅ Using flash_attention_2 for improved performance")
+    except Exception as e:
+        print(f"⚠️  flash_attention_2 not available: {str(e)}")
+        print("   Loading model with default attention (will be slower)")
+        model = Qwen2VLForConditionalGeneration.from_pretrained(
+            model_name,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+    
     processor = AutoProcessor.from_pretrained(model_name, min_pixels=256*28*28, max_pixels=512*28*28)
     return model, processor
+
+
+def load_text_model():
+    """Load text-only model for reasoning/validation tasks"""
+    print("📚 Loading text model for reasoning...")
+    try:
+        text_model = AutoModelForCausalLM.from_pretrained(
+            text_model_name,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        text_tokenizer = AutoTokenizer.from_pretrained(text_model_name)
+        print(f"✅ Text model loaded: {text_model_name}")
+        return text_model, text_tokenizer
+    except Exception as e:
+        print(f"⚠️  Failed to load text model: {e}")
+        print("   Falling back to vision model for text tasks")
+        return None, None
+
 
 def extract_frames(video_path: Path, fps: float = 0.2) -> list[Image.Image]:
     cap = cv2.VideoCapture(str(video_path))
@@ -78,7 +110,7 @@ def randomized_domain_match(frames, task_description, n, model, processor):
     match_percentage = match_count / n
     
     # Decision threshold: consider it a match if >50% of frames match
-    overall_match = match_percentage > 0.6
+    overall_match = match_percentage >= 0.6
     
     # Determine confidence based on consistency
     if match_percentage >= 0.8 or match_percentage <= 0.2:
@@ -368,7 +400,7 @@ def analyze_scenes_with_retry_loop(video_path, scenes, question_template, proces
 
 # Cell: Text-only LLM validation
 
-def validate_task_with_llm(verified_results, expected_task, processor, model):
+def validate_task_with_llm(verified_results, expected_task, processor, model, text_model=None, text_tokenizer=None):
     # Compile all scene descriptions
     scene_descriptions = []
     for i, result in enumerate(verified_results, 1):
@@ -378,45 +410,93 @@ def validate_task_with_llm(verified_results, expected_task, processor, model):
 
     full_description = "\n".join(scene_descriptions)
 
-    # Create validation prompt
+    # Create validation prompt with general reasoning guidance (no task-specific examples)
     validation_prompt = f"""I have analyzed a video and identified the following sequence of actions:
 
 {full_description}
 
 Based on these scene descriptions, is this video showing the task: "{expected_task}"?
 
+NOTE:
+- Scenes may be snippets of a larger task, not necessarily the entire task.
+- Smaller subtasks may be completed off-camera or between scenes.
+- A task can be confirmed even if there are missing steps 
+- A task can be confirmed even if there are a few unrelated scenes.
+- If several scenes are related to the task, you may make an assumption that the task is being completed.
+- If subtask 1 and subtask 3 are shown consecutively but there's a missing scene between them, you may make an assumption that the subtask 2 is being completed.
+
 Answer in this format:
 1. VERDICT: Yes or No
 2. CONFIDENCE: High, Medium, or Low
-3. REASONING: Explain why, citing specific scenes
-4. MISSING ELEMENTS: What's missing if it's not a complete match
+3. REASONING: Explain why, citing specific scenes and their relevance to the task
+4. MISSING ELEMENTS: What critical steps are missing, if any
 """
 
     print("🤖 Validating with LLM...")
     print(f"Expected task: {expected_task}\n")
 
-    # Use Qwen2-VL in text-only mode
-    messages = [{
-        "role": "user",
-        "content": [{"type": "text", "text": validation_prompt}],
-    }]
+    # Use text model if available, otherwise fall back to VL model
+    if text_model is not None and text_tokenizer is not None:
+        print("   Using dedicated text model for reasoning...")
+        
+        # Format for text-only model (Qwen2.5 chat format)
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant that analyzes video descriptions and determines if they match a given task."},
+            {"role": "user", "content": validation_prompt}
+        ]
+        
+        text = text_tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+        
+        inputs = text_tokenizer(text, return_tensors="pt").to(device)
+        
+        with torch.no_grad():
+            generated_ids = text_model.generate(
+                **inputs,
+                max_new_tokens=400,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True
+            )
+        
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):]
+            for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        
+        validation = text_tokenizer.batch_decode(
+            generated_ids_trimmed,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False
+        )[0]
+    else:
+        print("   Using vision model in text-only mode (fallback)...")
+        
+        # Use Qwen2-VL in text-only mode
+        messages = [{
+            "role": "user",
+            "content": [{"type": "text", "text": validation_prompt}],
+        }]
 
-    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = processor(text=[text], images=None, padding=True, return_tensors="pt").to(device)
+        text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = processor(text=[text], images=None, padding=True, return_tensors="pt").to(device)
 
-    with torch.no_grad():
-        generated_ids = model.generate(**inputs, max_new_tokens=400)
+        with torch.no_grad():
+            generated_ids = model.generate(**inputs, max_new_tokens=400)
 
-    generated_ids_trimmed = [
-        out_ids[len(in_ids):]
-        for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-    ]
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):]
+            for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
 
-    validation = processor.batch_decode(
-        generated_ids_trimmed,
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False
-    )[0]
+        validation = processor.batch_decode(
+            generated_ids_trimmed,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False
+        )[0]
 
     # Parse verdict
     validation_lower = validation.lower()

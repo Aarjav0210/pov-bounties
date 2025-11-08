@@ -11,10 +11,12 @@ import uuid
 from typing import Optional, Dict, Any
 import shutil
 from datetime import datetime
+import numpy as np
 
 # Import from existing video-validation module
 from video_validation import (
     load_model,
+    load_text_model,
     detect_task_changes,
     analyze_scenes_with_retry_loop,
     validate_task_with_llm,
@@ -22,6 +24,25 @@ from video_validation import (
     randomized_domain_match,
     extract_frames
 )
+
+
+def convert_numpy_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    return obj
 
 # Try to import config, fall back to defaults if not found
 try:
@@ -69,7 +90,12 @@ app.add_middleware(
 )
 
 # Global model cache
-model_cache = {"model": None, "processor": None}
+model_cache = {
+    "model": None,          # Vision-Language model
+    "processor": None,      # VL processor
+    "text_model": None,     # Text-only reasoning model
+    "text_tokenizer": None  # Text tokenizer
+}
 
 # Store for ongoing validation jobs
 validation_jobs: Dict[str, Dict[str, Any]] = {}
@@ -104,12 +130,23 @@ class ValidationStatus(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model on startup"""
+    """Load models on startup"""
     print("🚀 Loading Qwen2-VL model...")
     model, processor = load_model()
     model_cache["model"] = model
     model_cache["processor"] = processor
-    print("✅ Model loaded successfully")
+    print("✅ Vision model loaded successfully")
+    
+    print("\n🚀 Loading text reasoning model...")
+    text_model, text_tokenizer = load_text_model()
+    model_cache["text_model"] = text_model
+    model_cache["text_tokenizer"] = text_tokenizer
+    if text_model is not None:
+        print("✅ Text model loaded successfully")
+    else:
+        print("⚠️  Text model not available, will use vision model for text tasks")
+    
+    print("\n✅ All models loaded and ready!")
 
 
 @app.on_event("shutdown")
@@ -118,8 +155,11 @@ async def shutdown_event():
     if model_cache["model"] is not None:
         del model_cache["model"]
         del model_cache["processor"]
-        torch.cuda.empty_cache()
-        gc.collect()
+    if model_cache["text_model"] is not None:
+        del model_cache["text_model"]
+        del model_cache["text_tokenizer"]
+    torch.cuda.empty_cache()
+    gc.collect()
 
 
 @app.get("/")
@@ -172,6 +212,10 @@ async def validate_video_stream(request: VideoValidationRequest):
     
     async def event_generator():
         job_id = str(uuid.uuid4())
+        
+        def emit_json(data):
+            """Helper to emit SSE data with numpy type conversion"""
+            return f"data: {json.dumps(convert_numpy_types(data))}\n\n"
         
         try:
             # Determine video path
@@ -246,7 +290,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                         "confidence": domain_match_result['confidence']
                     }
                 }
-                yield f"data: {json.dumps(domain_match_data)}\n\n"
+                yield emit_json(domain_match_data)
                 await asyncio.sleep(0.1)
                 
                 # If domain match legitimately fails (rejection), stop early
@@ -266,7 +310,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                             "expected_task": request.expected_task
                         }
                     }
-                    yield f"data: {json.dumps(rejection_data)}\n\n"
+                    yield emit_json(rejection_data)
                     return
                     
             except Exception as e:
@@ -300,7 +344,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                     "num_scenes": len(scenes)
                 }
             }
-            yield f"data: {json.dumps(scenes_data)}\n\n"
+            yield emit_json(scenes_data)
             await asyncio.sleep(0.1)
             
             # Stage 2: VLM Classification with retry loop
@@ -363,7 +407,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                         "failed_count": len(failed_results)
                     }
                 }
-                yield f"data: {json.dumps(scene_analysis_data)}\n\n"
+                yield emit_json(scene_analysis_data)
                 await asyncio.sleep(0.1)
             
             # Stage 2 complete
@@ -380,7 +424,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                     "total_failed": len(failed_results)
                 }
             }
-            yield f"data: {json.dumps(analysis_complete_data)}\n\n"
+            yield emit_json(analysis_complete_data)
             await asyncio.sleep(0.1)
             
             # Stage 3: LLM Task Validation
@@ -391,7 +435,9 @@ async def validate_video_stream(request: VideoValidationRequest):
                 verified_results,
                 expected_task=request.expected_task,
                 processor=processor,
-                model=model
+                model=model,
+                text_model=model_cache["text_model"],
+                text_tokenizer=model_cache["text_tokenizer"]
             )
             
             # Final result
@@ -430,7 +476,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                     "summary": summary
                 }
             }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            yield emit_json(final_data)
             
         except Exception as e:
             error_data = {
@@ -597,7 +643,9 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
             verified_results,
             expected_task=request.expected_task,
             processor=processor,
-            model=model
+            model=model,
+            text_model=model_cache["text_model"],
+            text_tokenizer=model_cache["text_tokenizer"]
         )
         
         # Complete
@@ -643,7 +691,7 @@ async def get_validation_status(job_id: str):
     if job_id not in validation_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    return validation_jobs[job_id]
+    return convert_numpy_types(validation_jobs[job_id])
 
 
 @app.delete("/validation-job/{job_id}")
@@ -658,10 +706,10 @@ async def delete_validation_job(job_id: str):
 @app.get("/validation-jobs")
 async def list_validation_jobs():
     """List all validation jobs"""
-    return {
+    return convert_numpy_types({
         "jobs": list(validation_jobs.values()),
         "total": len(validation_jobs)
-    }
+    })
 
 
 if __name__ == "__main__":
