@@ -1,0 +1,9 @@
+{
+    "name": "sandwich_disco",
+    "prompt": "A first-person view of hands making a sandwich on a sleek stainless steel countertop surface, illuminated by vibrant colorful disco lights casting dynamic pink, blue, purple, and green lighting patterns across the metallic surface and ingredients, creating dramatic shadows and reflections",
+    "video_path": "/home/paperspace/cosmos-transfer/sandwich.mp4",
+    "guidance": 2,
+    "edge": {
+        "control_weight": 0.4
+    }
+}

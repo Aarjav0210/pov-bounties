@@ -1,0 +1,9 @@
+{
+    "name": "wine_factory_jungle",
+    "prompt": "A first-person egocentric view of hands manipulating objects in the immediate foreground, surrounded by dense tropical jungle environment with lush green vegetation, vines, palm trees, and dappled sunlight filtering through the canopy",
+    "video_path": "/home/paperspace/cosmos-transfer/wine_factory.mp4",
+    "guidance": 3,
+    "edge": {
+        "control_weight": 0.6
+    }
+}

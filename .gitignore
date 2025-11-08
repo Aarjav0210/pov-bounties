@@ -1,11 +1,46 @@
 # bytecode / caches
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# environment files
+.env
+.env.local
+*.env
 
 # large artifacts
 *.ckpt
 *.npz
 *.pkl
+*.pth
+*.safetensors
+
+# output directories
+outputs/
+temp/
+temp_output/
+
+# cache directories
+.cache/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# model checkpoints and data
+models/
+checkpoints/
+data/
+
+# git subdirectories (nested repos)
+cosmos-transfer/cosmos-transfer2.5/.git/
 
 # WiLoR data + checkpoint
 mano_est/mano_est_deploy/WiLoR/mano_data/

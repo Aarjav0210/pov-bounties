@@ -126,14 +126,83 @@ outputs/
     4_skeleton_no_overlay.mp4
 ```
 
+## Cosmos-Transfer Integration
+
+### Overview
+[Cosmos-Transfer2.5](https://github.com/NVIDIA/Cosmos-Transfer2.5) is NVIDIA's multi-controlnet model for photorealistic video generation from structured control inputs. This integration allows you to generate photorealistic augmented videos from your input videos.
+
+### Installation
+
+1. **Clone and setup Cosmos-Transfer:**
+```bash
+cd cosmos-transfer/cosmos-transfer2.5
+bash ../setup.sh
+```
+
+The setup script will:
+- Create a Python virtual environment
+- Install dependencies using `uv`
+- Download the Cosmos-Transfer2.5-2B model from Hugging Face
+
+**Requirements:**
+- GPU with at least 65 GB VRAM (H100/B200 recommended)
+- ~65 GB disk space for the model
+- Hugging Face account for model access
+
+2. **Accept model license:**
+Visit https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B and accept the model license terms.
+
+### Usage
+
+1. **Create JSON prompt files:**
+For each video in `inputs/`, create a corresponding `.json` file with the same name. Example `inputs/video.json`:
+
+```json
+{
+  "name": "video",
+  "prompt": "A photorealistic high-quality video demonstration...",
+  "negative_prompt": "Low quality, blurry, cartoonish...",
+  "seed": 0,
+  "guidance": 3,
+  "edge": {
+    "control_weight": 1.0
+  }
+}
+```
+
+See `inputs/TEMPLATE.json` for more examples and options.
+
+2. **Run batch processing:**
+```bash
+cd /path/to/pov-bounties
+python process_cosmos_batch.py
+```
+
+**Output:**
+Generates photorealistic augmented videos in `outputs/{videoname}/{videoname}_aug.mp4`
+
+**Configuration:**
+- `--inputs`: Input directory (default: `inputs/`)
+- `--outputs`: Output directory (default: `outputs/`)
+- `--cosmos-dir`: Cosmos-Transfer installation path (default: `cosmos-transfer/cosmos-transfer2.5/`)
+
 ## Project Structure
 
 ```
 pov-bounties/
 ├── README.md                           # This file
-├── process_batch.py                    # Batch processing script
-├── inputs/                             # Input videos directory
-├── outputs/                            # Batch output directory
+├── process_batch.py                    # MANO batch processing script
+├── process_cosmos_batch.py             # Cosmos-Transfer batch processing script
+├── inputs/                             # Input videos and JSON prompts
+├── outputs/                            # Output directory
+├── cosmos-transfer/
+│   ├── setup.sh                        # Cosmos-Transfer setup script
+│   ├── activate.sh                     # Environment activation
+│   ├── PLAN.md                         # Integration plan document
+│   └── cosmos-transfer2.5/             # Cosmos-Transfer repository
+│       ├── venv/                       # Python virtual environment
+│       └── examples/
+│           └── inference.py            # Main inference script
 └── mano_est/
     └── mano_est_deploy/
         ├── activate.sh                 # Environment activation
