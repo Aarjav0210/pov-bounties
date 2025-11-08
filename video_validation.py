@@ -44,6 +44,60 @@ def extract_frames(video_path: Path, fps: float = 0.2) -> list[Image.Image]:
     cap.release()
     return frames
 
+def randomized_domain_match(frames, task_description, n, model, processor):
+    """
+    Randomly sample n frames and analyze them individually (non-temporally)
+    to determine if they match the task description.
+    """
+    # Randomly sample n frames
+    indices = np.random.choice(len(frames), n, replace=False)
+    sampled_frames = [frames[i] for i in indices]
+    
+    # Analyze each frame individually (non-temporally)
+    results = []
+    for i, frame in enumerate(sampled_frames):
+        question = f"Could this image be part of a video where someone in the process of performing an action that takes place at some random point during the following task: '{task_description}'? This is just a frame from a video, so you may not see the whole story. Answer Yes or No. Then briefly explain what you see."
+        
+        # Use existing analyze_scene function with single frame
+        response = analyze_scene([frame], question, processor, model, max_tokens=150)
+        
+        # Parse response for Yes/No
+        response_lower = response.lower().strip()
+        is_match = response_lower.startswith('yes')
+        
+        results.append({
+            'frame_index': indices[i],
+            'response': response,
+            'is_match': is_match
+        })
+        
+        print(f"   Frame {indices[i]}: {'✓' if is_match else '✗'} - {response[:100]}...")
+
+    # Make a decision based on aggregated results
+    match_count = sum(1 for r in results if r['is_match'])
+    match_percentage = match_count / n
+    
+    # Decision threshold: consider it a match if >50% of frames match
+    overall_match = match_percentage > 0.6
+    
+    # Determine confidence based on consistency
+    if match_percentage >= 0.8 or match_percentage <= 0.2:
+        confidence = "High"
+    elif match_percentage >= 0.6 or match_percentage <= 0.4:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+    
+    return {
+        'task_description': task_description,
+        'sampled_frames': n,
+        'matches': match_count,
+        'match_percentage': match_percentage,
+        'overall_match': overall_match,
+        'confidence': confidence,
+        'frame_analyses': results
+    }
+
 def extract_scene_frames(video_path, start_sec, end_sec, max_frames=12):
     """Extract frames from a specific scene for Qwen."""
     cap = cv2.VideoCapture(str(video_path))
