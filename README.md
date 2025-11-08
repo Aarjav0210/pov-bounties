@@ -174,14 +174,6 @@ pov-bounties/
 3. WiLoR model estimates 3D hand pose and MANO parameters
 4. Outputs are rendered with overlay or white background
 
-## Troubleshooting
-
-### "ERROR: Repository not found" when pushing
-Make sure the git remote is set correctly:
-```bash
-git remote set-url origin git@github.com:Aarjav0210/pov-bounties.git
-```
-
 ### Missing model files
 Verify all required files exist:
 ```bash
