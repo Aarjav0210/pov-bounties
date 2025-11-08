@@ -269,8 +269,8 @@ def analyze_scene_with_smart_retry(frames, initial_question, processor, model, m
         'final_verification': attempts[-1]['verification']
     }
 
-def analyze_scenes_with_retry_loop(video_path, scenes, question_template, retry_function=analyze_scene_with_smart_retry,
-                                   processor, model, max_retries=3, max_frames=12):
+def analyze_scenes_with_retry_loop(video_path, scenes, question_template, processor, model,
+                                   retry_function=analyze_scene_with_smart_retry, max_retries=3, max_frames=12):
     verified_results = []
     failed_results = []
     previous_description = None

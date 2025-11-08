@@ -1,6 +1,12 @@
 # Created by https://www.toptal.com/developers/gitignore/api/cuda,macos,react,nextjs,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=cuda,macos,react,nextjs,visualstudiocode,python
 
+#Custom files
+ignore/
+
+#Config files
+config.py
+
 ### CUDA ###
 *.i
 *.ii
