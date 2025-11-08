@@ -32,11 +32,16 @@ except ImportError:
     UPLOAD_DIR = Path("./uploaded_videos")
     CORS_ORIGINS = ["*"]
     API_HOST = "0.0.0.0"
-    API_PORT = 8000
+    API_PORT = 8080
     print("⚠️  config.py not found, using default configuration")
 
 app = FastAPI(title="POV Bounties Upload API", version="1.0.0")
 
+# CORS configuration
+if os.getenv('ALLOW_ALL_CORS') == 'true':
+    CORS_ORIGINS = ["*"]
+    print("⚠️  CORS set to allow ALL origins (not recommended for production)")
+    
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
