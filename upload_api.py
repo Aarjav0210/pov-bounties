@@ -38,10 +38,10 @@ except ImportError:
 app = FastAPI(title="POV Bounties Upload API", version="1.0.0")
 
 # CORS configuration
-if os.getenv('ALLOW_ALL_CORS') == 'true':
-    CORS_ORIGINS = ["*"]
-    print("⚠️  CORS set to allow ALL origins (not recommended for production)")
-    
+# if os.getenv('ALLOW_ALL_CORS') == 'true':
+#     CORS_ORIGINS = ["*"]
+#     print("⚠️  CORS set to allow ALL origins (not recommended for production)")
+
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
@@ -75,6 +75,139 @@ async def health_check():
     }
 
 
+@app.post("/generate-upload-url")
+async def generate_upload_url(
+    name: str = Form(...),
+    email: str = Form(...),
+    venmo_id: str = Form(...),
+    filename: str = Form(...),
+    content_type: str = Form(...)
+):
+    """
+    Generate a presigned S3 URL for direct upload from browser
+    This bypasses the backend for file upload, preventing timeouts
+    """
+    print("\n" + "="*50)
+    print("🔗 GENERATE PRESIGNED URL REQUEST")
+    print(f"📝 Name: {name}")
+    print(f"📧 Email: {email}")
+    print(f"💰 Venmo ID: {venmo_id}")
+    print(f"📹 Filename: {filename}")
+    print("="*50 + "\n")
+    
+    # Validate file extension
+    if not filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        raise HTTPException(status_code=400, detail="Invalid video format. Please upload MP4, AVI, MOV, or MKV.")
+    
+    # Clean venmo_id
+    clean_venmo_id = venmo_id.strip()
+    if clean_venmo_id.startswith('@'):
+        clean_venmo_id = clean_venmo_id[1:]
+    
+    # Get file extension
+    file_extension = Path(filename).suffix
+    s3_filename = f"{clean_venmo_id}{file_extension}"
+    
+    # Check AWS credentials
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    s3_bucket = os.getenv('S3_BUCKET_NAME', 'pov-bounties')
+    
+    if not aws_access_key or not aws_secret_key:
+        raise HTTPException(status_code=503, detail="S3 upload not configured")
+    
+    # Generate unique submission ID
+    file_id = str(uuid.uuid4())
+    
+    try:
+        # Create S3 client
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=os.getenv('AWS_REGION', 'us-east-1')
+        )
+        
+        # Generate presigned URL (valid for 10 minutes)
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': s3_bucket,
+                'Key': s3_filename,
+                'ContentType': content_type,
+                'Metadata': {
+                    'name': name,
+                    'email': email,
+                    'venmo_id': clean_venmo_id,
+                    'submission_id': file_id,
+                    'submitted_at': datetime.now().isoformat()
+                }
+            },
+            ExpiresIn=600  # 10 minutes
+        )
+        
+        # Store submission metadata
+        submission_metadata = {
+            "file_id": file_id,
+            "name": name,
+            "email": email,
+            "venmo_id": clean_venmo_id,
+            "filename": s3_filename,
+            "s3_url": f"s3://{s3_bucket}/{s3_filename}",
+            "submitted_at": datetime.now().isoformat(),
+            "status": "upload_pending"
+        }
+        
+        # Save metadata
+        metadata_path = UPLOAD_DIR / f"{file_id}_metadata.json"
+        with metadata_path.open("w") as f:
+            json.dump(submission_metadata, f, indent=2)
+        
+        print(f"✅ Presigned URL generated for: {s3_filename}")
+        
+        return {
+            "upload_url": presigned_url,
+            "file_id": file_id,
+            "s3_filename": s3_filename,
+            "expires_in": 600
+        }
+        
+    except ClientError as e:
+        print(f"❌ S3 error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate upload URL: {str(e)}")
+
+
+@app.post("/confirm-upload")
+async def confirm_upload(
+    file_id: str = Form(...),
+):
+    """
+    Confirm that upload to S3 was successful
+    Updates submission status
+    """
+    print(f"✅ Upload confirmed for file_id: {file_id}")
+    
+    # Update metadata
+    metadata_path = UPLOAD_DIR / f"{file_id}_metadata.json"
+    if metadata_path.exists():
+        with metadata_path.open("r") as f:
+            metadata = json.load(f)
+        
+        metadata["status"] = "pending_review"
+        metadata["uploaded_at"] = datetime.now().isoformat()
+        
+        with metadata_path.open("w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        return {
+            "message": "Upload confirmed",
+            "file_id": file_id,
+            "status": "pending_review"
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+
 @app.post("/submit-bounty-video")
 async def submit_bounty_video(
     file: UploadFile = File(...),
@@ -83,11 +216,14 @@ async def submit_bounty_video(
     venmo_id: str = Form(...)
 ):
     """
-    Submit a bounty video with user information
+    LEGACY: Submit a bounty video with user information (uploads through backend)
     Uploads to S3 with VenmoID as filename (no validation)
+    
+    NOTE: For large files or mobile uploads, use /generate-upload-url instead
+    to upload directly to S3 and avoid timeouts
     """
     print("\n" + "="*50)
-    print("🎬 RECEIVED POST /submit-bounty-video")
+    print("🎬 RECEIVED POST /submit-bounty-video (LEGACY)")
     print(f"📝 Name: {name}")
     print(f"📧 Email: {email}")
     print(f"💰 Venmo ID: {venmo_id}")

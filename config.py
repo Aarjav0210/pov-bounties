@@ -36,7 +36,7 @@ CORS_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://localhost:8080",
-    "http://www.thisispepper.tech",
+    "https://www.thisispepper.tech",
     "https://pov-bounties-frontend.vercel.app"
 
     # Add your frontend domain here
