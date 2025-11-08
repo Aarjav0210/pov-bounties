@@ -1,0 +1,150 @@
+Checking GPU...
+NVIDIA H100 80GB HBM3, 535.129.03, 81559 MiB
+Installing cosmos-transfer2.5 with CUDA extras using Python 3.10...
+Defaulting to user installation because normal site-packages is not writeable
+Collecting uv
+  Using cached uv-0.9.7-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (11 kB)
+Using cached uv-0.9.7-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (21.4 MB)
+Installing collected packages: uv
+Successfully installed uv-0.9.7
+Using Python 3.10.12 environment at: /usr
+Resolved 219 packages in 16.64s
+   Building cosmos-oss @ file:///home/paperspace/cosmos-transfer/cosmos-transfer2.5/packages/cosmos-oss
+   Updating https://github.com/jeanachoi/Video-Depth-Anything.git (HEAD)
+   Building cosmos-transfer2 @ file:///home/paperspace/cosmos-transfer/cosmos-transfer2.5
+Downloading hf-xet (3.2MiB)
+Downloading fonttools (4.6MiB)
+Downloading imageio-ffmpeg (28.1MiB)
+Downloading numpy (16.0MiB)
+Downloading botocore (13.4MiB)
+Downloading pillow (6.7MiB)
+Downloading cryptography (4.3MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading shapely (2.9MiB)
+Downloading tokenizers (3.1MiB)
+Downloading decord (13.0MiB)
+Downloading nvidia-nccl-cu12 (192.0MiB)
+Downloading modelscope (5.6MiB)
+Downloading nvidia-cudnn-cu12 (693.2MiB)
+Downloading wandb (19.1MiB)
+Downloading nvidia-nvjitlink-cu12 (37.4MiB)
+Downloading nvidia-cusparselt-cu12 (149.5MiB)
+Downloading pyarrow (45.4MiB)
+Downloading triton (148.4MiB)
+Downloading pulp (15.6MiB)
+Downloading timm (2.4MiB)
+Downloading ml-dtypes (4.7MiB)
+Downloading scikit-image (14.1MiB)
+Downloading nvidia-cusparse-cu12 (278.5MiB)
+Downloading tensorstore (19.1MiB)
+Downloading matplotlib (8.3MiB)
+Downloading av (37.9MiB)
+Downloading networkx (1.6MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (83.9MiB)
+Downloading opencv-python (63.9MiB)
+Downloading nvidia-cufft-cu12 (184.2MiB)
+Downloading diffusers (3.9MiB)
+Downloading nvidia-cublas-cu12 (581.4MiB)
+Downloading nvidia-cuda-cupti-cu12 (9.8MiB)
+Downloading xformers (111.6MiB)
+Downloading nvidia-cusolver-cu12 (248.3MiB)
+Downloading nvidia-curand-cu12 (60.7MiB)
+Downloading scipy (35.9MiB)
+Downloading opencv-python-headless (51.5MiB)
+Downloading pandas (12.2MiB)
+Downloading numcodecs (8.2MiB)
+Downloading multi-storage-client (3.2MiB)
+Downloading transformers (11.4MiB)
+Downloading megatron-core (1.8MiB)
+Downloading apex (19.4MiB)
+Downloading transformer-engine (129.5MiB)
+Downloading natten (345.6MiB)
+Downloading flash-attn (244.1MiB)
+Downloading torchvision (8.3MiB)
+Downloading torch (991.2MiB)
+    Updated https://github.com/jeanachoi/Video-Depth-Anything.git (f70048c9599cc9221e7d70b098621909316fa4a4)
+   Building video-depth-anything @ git+https://github.com/jeanachoi/Video-Depth-Anything.git@f70048c9599cc9221e7d70b098621909316fa4a4
+      Built video-depth-anything @ git+https://github.com/jeanachoi/Video-Depth-Anything.git@f70048c9599cc9221e7d70b098621909316fa4a4
+ Downloading torchvision
+Downloading kiwisolver (1.6MiB)
+ Downloading pydantic-core
+Downloading jedi (1.5MiB)
+ Downloading apex
+Downloading nltk (1.4MiB)
+ Downloading megatron-core
+Downloading openexr (1.3MiB)
+ Downloading timm
+Downloading sentencepiece (1.3MiB)
+ Downloading networkx
+Downloading pygments (1.2MiB)
+ Downloading hf-xet
+ Downloading shapely
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading tiktoken (1.1MiB)
+ Downloading tokenizers
+Downloading simsimd (1.0MiB)
+ Downloading multi-storage-client
+ Downloading kiwisolver
+ Downloading openexr
+ Downloading sentencepiece
+ Downloading diffusers
+ Downloading simsimd
+ Downloading tiktoken
+ Downloading nvidia-cufile-cu12
+ Downloading pygments
+ Downloading nltk
+ Downloading fonttools
+ Downloading cryptography
+ Downloading ml-dtypes
+ Downloading transformer-engine
+ Downloading pillow
+ Downloading flash-attn
+   Building sam2==1.1.0
+ Downloading natten
+   Building antlr4-python3-runtime==4.9.3
+   Building fvcore==0.1.5.post20221221
+   Building iopath==0.1.10
+   Building asciitree==0.3.3
+      Built asciitree==0.3.3
+      Built cosmos-oss @ file:///home/paperspace/cosmos-transfer/cosmos-transfer2.5/packages/cosmos-oss
+      Built antlr4-python3-runtime==4.9.3
+      Built cosmos-transfer2 @ file:///home/paperspace/cosmos-transfer/cosmos-transfer2.5
+ Downloading numcodecs
+      Built iopath==0.1.10
+ Downloading matplotlib
+      Built fvcore==0.1.5.post20221221
+ Downloading nvidia-cuda-cupti-cu12
+ Downloading jedi
+ Downloading transformers
+ Downloading decord
+ Downloading botocore
+ Downloading pulp
+ Downloading numpy
+ Downloading scikit-image
+ Downloading tensorstore
+ Downloading pandas
+ Downloading modelscope
+ Downloading wandb
+ Downloading imageio-ffmpeg
+ Downloading nvidia-nvjitlink-cu12
+ Downloading av
+ Downloading scipy
+ Downloading opencv-python-headless
+ Downloading nvidia-curand-cu12
+ Downloading opencv-python
+ Downloading pyarrow
+ Downloading nvidia-cuda-nvrtc-cu12
+ Downloading xformers
+ Downloading nvidia-cusparselt-cu12
+ Downloading triton
+ Downloading nvidia-cufft-cu12
+ Downloading nvidia-nccl-cu12
+ Downloading nvidia-cusolver-cu12
+ Downloading nvidia-cusparse-cu12
+ Downloading nvidia-cublas-cu12
+ Downloading nvidia-cudnn-cu12
+ Downloading torch
+      Built sam2==1.1.0
+Prepared 212 packages in 59.48s
+error: Failed to install: video_depth_anything-1.0.0-py3-none-any.whl (video-depth-anything==1.0.0 (from git+https://github.com/jeanachoi/Video-Depth-Anything.git@f70048c9599cc9221e7d70b098621909316fa4a4))
+  Caused by: failed to create directory `/usr/local/lib/python3.10/dist-packages/loss`: Permission denied (os error 13)

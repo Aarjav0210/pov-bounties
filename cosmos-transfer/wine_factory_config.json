@@ -1,0 +1,9 @@
+{
+    "name": "wine_factory_princeton",
+    "prompt": "A first-person view of hands interacting with objects in the foreground, set against the backdrop of Princeton University campus with iconic Gothic architecture, stone buildings, and collegiate atmosphere with natural daylight",
+    "video_path": "/home/paperspace/cosmos-transfer/wine_factory.mp4",
+    "guidance": 4,
+    "edge": {
+        "control_weight": 1.0
+    }
+}

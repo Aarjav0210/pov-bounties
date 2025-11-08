@@ -1,0 +1,27 @@
+[project]
+name = "wilor-hand-estimation"
+version = "0.1.0"
+description = "WiLoR for 3D hand localization and reconstruction"
+channels = ["pytorch", "nvidia", "conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.10.*"
+pip = ">=24.0"
+pytorch = {version = "2.0.*", channel = "pytorch"}
+pytorch-cuda = {version = "11.7.*", channel = "pytorch"}
+torchvision = {version = "*", channel = "pytorch"}
+cuda-toolkit = "11.7.*"
+numpy = ">=1.20.0"
+matplotlib = "*"
+pillow = "*"
+git = "*"
+wget = "*"
+ffmpeg = ">=4.3,<5"
+
+[tasks]
+setup = "bash setup.sh"
+demo = "python WiLoR/demo.py"
+
+[activation]
+scripts = ["activate.sh"]
