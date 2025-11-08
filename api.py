@@ -247,7 +247,7 @@ async def submit_bounty_video(
                 's3',
                 aws_access_key_id=aws_access_key,
                 aws_secret_access_key=aws_secret_key,
-                region_name=os.getenv('AWS_REGION', 'us-east-1')
+                region_name=os.getenv('AWS_REGION', 'us-east-2')
             )
             
             # Upload file to S3
