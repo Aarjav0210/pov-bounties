@@ -1,0 +1,12 @@
+torch>=2.0.0
+transformers>=4.37.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+ruptures>=1.1.0
+tqdm>=4.65.0
+accelerate>=0.25.0
+flash-attn>=2.3.0
+av>=10.0.0
+qwen-vl-utils>=0.0.1
+
