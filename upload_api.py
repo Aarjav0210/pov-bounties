@@ -131,19 +131,14 @@ async def generate_upload_url(
         )
         
         # Generate presigned URL (valid for 10 minutes)
+        # Note: Removed Metadata from presigned URL to avoid CORS preflight issues
+        # Metadata is stored in backend database instead
         presigned_url = s3_client.generate_presigned_url(
             'put_object',
             Params={
                 'Bucket': s3_bucket,
                 'Key': s3_filename,
-                'ContentType': content_type,
-                'Metadata': {
-                    'name': name,
-                    'email': email,
-                    'venmo_id': clean_venmo_id,
-                    'submission_id': file_id,
-                    'submitted_at': datetime.now().isoformat()
-                }
+                'ContentType': content_type
             },
             ExpiresIn=600  # 10 minutes
         )
