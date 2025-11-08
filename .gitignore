@@ -5,8 +5,12 @@ __pycache__/
 *.pyd
 .Python
 
+config.py
+pov-env/
+uploaded_videos/
+ignore/
 # virtual environments
-venv/
+env/
 env/
 ENV/
 .venv

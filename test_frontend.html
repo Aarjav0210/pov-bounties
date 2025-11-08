@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Connection</title>
+    <style>
+        body { font-family: Arial; padding: 20px; max-width: 600px; margin: 0 auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; font-size: 16px; }
+        .success { color: green; }
+        .error { color: red; }
+        #results { margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    
+    <h2>Test Endpoints:</h2>
+    <button onclick="testRoot()">Test GET /</button>
+    <button onclick="testHealth()">Test GET /health</button>
+    <button onclick="testPost()">Test POST /test</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        const results = document.getElementById('results');
+
+        function log(message, isError = false) {
+            const p = document.createElement('p');
+            p.className = isError ? 'error' : 'success';
+            p.textContent = message;
+            results.appendChild(p);
+            console.log(message);
+        }
+
+        async function testRoot() {
+            results.innerHTML = '';
+            log('🔍 Testing GET /...');
+            try {
+                const response = await fetch(`${API_URL}/`);
+                const data = await response.json();
+                log(`✅ GET / Success: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`❌ GET / Error: ${error.message}`, true);
+            }
+        }
+
+        async function testHealth() {
+            results.innerHTML = '';
+            log('🔍 Testing GET /health...');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                log(`✅ GET /health Success: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`❌ GET /health Error: ${error.message}`, true);
+            }
+        }
+
+        async function testPost() {
+            results.innerHTML = '';
+            log('🔍 Testing POST /test...');
+            try {
+                const response = await fetch(`${API_URL}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                log(`✅ POST /test Success: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`❌ POST /test Error: ${error.message}`, true);
+            }
+        }
+    </script>
+</body>
+</html>
+
