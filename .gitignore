@@ -5,7 +5,6 @@ __pycache__/
 *.pyd
 .Python
 
-config.py
 pov-env/
 uploaded_videos/
 ignore/
