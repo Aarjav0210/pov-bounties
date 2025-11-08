@@ -18,7 +18,9 @@ from video_validation import (
     detect_task_changes,
     analyze_scenes_with_retry_loop,
     validate_task_with_llm,
-    analyze_scene_with_smart_retry
+    analyze_scene_with_smart_retry,
+    randomized_domain_match,
+    extract_frames
 )
 
 # Try to import config, fall back to defaults if not found
@@ -34,6 +36,9 @@ try:
     DEFAULT_MAX_RETRIES = config.DEFAULT_MAX_RETRIES
     DEFAULT_MAX_FRAMES = config.DEFAULT_MAX_FRAMES
     DEFAULT_QUESTION_TEMPLATE = config.DEFAULT_QUESTION_TEMPLATE
+    DEFAULT_DOMAIN_MATCH_SAMPLES = config.DEFAULT_DOMAIN_MATCH_SAMPLES
+    DEFAULT_DOMAIN_MATCH_THRESHOLD = config.DEFAULT_DOMAIN_MATCH_THRESHOLD
+    DEFAULT_DOMAIN_MATCH_FPS = config.DEFAULT_DOMAIN_MATCH_FPS
     print("✅ Loaded configuration from config.py")
 except ImportError:
     # Fallback to hardcoded defaults
@@ -47,6 +52,9 @@ except ImportError:
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_MAX_FRAMES = 12
     DEFAULT_QUESTION_TEMPLATE = "What action(s) is happening in this scene? Be specific, not vague."
+    DEFAULT_DOMAIN_MATCH_SAMPLES = 5
+    DEFAULT_DOMAIN_MATCH_THRESHOLD = 0.6
+    DEFAULT_DOMAIN_MATCH_FPS = 0.2
     print("⚠️  config.py not found, using default configuration")
 
 app = FastAPI(title="Video Validation API", version="1.0.0")
@@ -79,12 +87,15 @@ class VideoValidationRequest(BaseModel):
     max_retries: int = DEFAULT_MAX_RETRIES
     max_frames: int = DEFAULT_MAX_FRAMES
     question_template: str = DEFAULT_QUESTION_TEMPLATE
+    domain_match_samples: int = DEFAULT_DOMAIN_MATCH_SAMPLES
+    domain_match_threshold: float = DEFAULT_DOMAIN_MATCH_THRESHOLD
+    domain_match_fps: float = DEFAULT_DOMAIN_MATCH_FPS
 
 
 class ValidationStatus(BaseModel):
     job_id: str
-    status: str  # "processing", "completed", "failed"
-    stage: str  # "initializing", "parsing_scenes", "analyzing_scenes", "validating_task", "done"
+    status: str  # "processing", "completed", "failed", "rejected"
+    stage: str  # "initializing", "domain_matching", "parsing_scenes", "analyzing_scenes", "validating_task", "done"
     progress: float  # 0.0 to 1.0
     current_step: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
@@ -198,8 +209,76 @@ async def validate_video_stream(request: VideoValidationRequest):
                 yield f"data: {json.dumps(error_data)}\n\n"
                 return
             
+            # Stage 0: Domain Matching (Quick Initial Validation)
+            domain_match_result = None
+            domain_match_error = None
+            
+            try:
+                yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'domain_matching', 'progress': 0.05, 'current_step': 'Extracting frames for quick validation...'})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # Extract frames from entire video
+                frames = extract_frames(video_path, fps=request.domain_match_fps)
+                
+                yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'domain_matching', 'progress': 0.1, 'current_step': f'Running domain match on {len(frames)} frames...'})}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # Run randomized domain match
+                domain_match_result = randomized_domain_match(
+                    frames=frames,
+                    task_description=request.expected_task,
+                    n=min(request.domain_match_samples, len(frames)),
+                    model=model,
+                    processor=processor
+                )
+                
+                # Send domain match result
+                domain_match_data = {
+                    "job_id": job_id,
+                    "status": "processing",
+                    "stage": "domain_matching",
+                    "progress": 0.15,
+                    "current_step": f"Domain match: {'✓ PASS' if domain_match_result['overall_match'] else '✗ FAIL'} ({domain_match_result['match_percentage']:.1%} match)",
+                    "result": {
+                        "domain_match": domain_match_result,
+                        "passed": domain_match_result['overall_match'],
+                        "match_percentage": domain_match_result['match_percentage'],
+                        "confidence": domain_match_result['confidence']
+                    }
+                }
+                yield f"data: {json.dumps(domain_match_data)}\n\n"
+                await asyncio.sleep(0.1)
+                
+                # If domain match legitimately fails (rejection), stop early
+                if not domain_match_result['overall_match']:
+                    rejection_data = {
+                        "job_id": job_id,
+                        "status": "rejected",
+                        "stage": "domain_matching",
+                        "progress": 1.0,
+                        "current_step": "Video rejected: Does not match expected task domain",
+                        "result": {
+                            "domain_match": domain_match_result,
+                            "passed": False,
+                            "match_percentage": domain_match_result['match_percentage'],
+                            "confidence": domain_match_result['confidence'],
+                            "reason": f"Only {domain_match_result['match_percentage']:.1%} of sampled frames matched the task description (threshold: {request.domain_match_threshold:.1%})",
+                            "expected_task": request.expected_task
+                        }
+                    }
+                    yield f"data: {json.dumps(rejection_data)}\n\n"
+                    return
+                    
+            except Exception as e:
+                # Domain match function failed - log error and continue with validation
+                domain_match_error = str(e)
+                error_msg = f"Domain match error: {domain_match_error} - Bypassing and continuing validation..."
+                
+                yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'domain_matching', 'progress': 0.15, 'current_step': error_msg, 'result': {'domain_match_error': domain_match_error, 'bypassed': True}})}\n\n"
+                await asyncio.sleep(0.1)
+            
             # Stage 1: Parse scenes (detect_task_changes)
-            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'parsing_scenes', 'progress': 0.1, 'current_step': 'Detecting scene changes...'})}\n\n"
+            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'parsing_scenes', 'progress': 0.2, 'current_step': 'Detecting scene changes...'})}\n\n"
             await asyncio.sleep(0.1)
             
             scenes = detect_task_changes(
@@ -214,7 +293,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                 "job_id": job_id,
                 "status": "processing",
                 "stage": "parsing_scenes",
-                "progress": 0.25,
+                "progress": 0.3,
                 "current_step": f"Found {len(scenes)} scenes",
                 "result": {
                     "scenes": scenes,
@@ -225,7 +304,7 @@ async def validate_video_stream(request: VideoValidationRequest):
             await asyncio.sleep(0.1)
             
             # Stage 2: VLM Classification with retry loop
-            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'analyzing_scenes', 'progress': 0.3, 'current_step': 'Starting scene analysis...'})}\n\n"
+            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'analyzing_scenes', 'progress': 0.35, 'current_step': 'Starting scene analysis...'})}\n\n"
             await asyncio.sleep(0.1)
             
             # Analyze scenes with progress updates
@@ -235,7 +314,7 @@ async def validate_video_stream(request: VideoValidationRequest):
             
             for idx, scene in enumerate(scenes):
                 scene_num = scene['scene_num']
-                scene_progress = 0.3 + (0.5 * (idx / len(scenes)))
+                scene_progress = 0.35 + (0.45 * (idx / len(scenes)))
                 
                 # Update progress for this scene
                 yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'analyzing_scenes', 'progress': scene_progress, 'current_step': f'Analyzing scene {scene_num}/{len(scenes)}'})}\n\n"
@@ -292,7 +371,7 @@ async def validate_video_stream(request: VideoValidationRequest):
                 "job_id": job_id,
                 "status": "processing",
                 "stage": "analyzing_scenes",
-                "progress": 0.8,
+                "progress": 0.85,
                 "current_step": f"Scene analysis complete: {len(verified_results)} verified, {len(failed_results)} failed",
                 "result": {
                     "verified_results": verified_results,
@@ -305,7 +384,7 @@ async def validate_video_stream(request: VideoValidationRequest):
             await asyncio.sleep(0.1)
             
             # Stage 3: LLM Task Validation
-            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'validating_task', 'progress': 0.85, 'current_step': 'Validating task with LLM...'})}\n\n"
+            yield f"data: {json.dumps({'job_id': job_id, 'status': 'processing', 'stage': 'validating_task', 'progress': 0.9, 'current_step': 'Validating task with LLM...'})}\n\n"
             await asyncio.sleep(0.1)
             
             validation_result = validate_task_with_llm(
@@ -316,6 +395,25 @@ async def validate_video_stream(request: VideoValidationRequest):
             )
             
             # Final result
+            summary = {
+                "total_scenes": len(scenes),
+                "verified_scenes": len(verified_results),
+                "failed_scenes": len(failed_results),
+                "task_confirmed": validation_result['confirmed'],
+                "expected_task": request.expected_task
+            }
+            
+            # Add domain match results if available
+            if domain_match_result:
+                summary.update({
+                    "domain_match_passed": domain_match_result['overall_match'],
+                    "domain_match_percentage": domain_match_result['match_percentage'],
+                    "domain_match_confidence": domain_match_result['confidence']
+                })
+            elif domain_match_error:
+                summary["domain_match_error"] = domain_match_error
+                summary["domain_match_bypassed"] = True
+            
             final_data = {
                 "job_id": job_id,
                 "status": "completed",
@@ -323,17 +421,13 @@ async def validate_video_stream(request: VideoValidationRequest):
                 "progress": 1.0,
                 "current_step": "Validation complete",
                 "result": {
+                    "domain_match": domain_match_result,
+                    "domain_match_error": domain_match_error,
                     "scenes": scenes,
                     "verified_results": verified_results,
                     "failed_results": failed_results,
                     "validation": validation_result,
-                    "summary": {
-                        "total_scenes": len(scenes),
-                        "verified_scenes": len(verified_results),
-                        "failed_scenes": len(failed_results),
-                        "task_confirmed": validation_result['confirmed'],
-                        "expected_task": request.expected_task
-                    }
+                    "summary": summary
                 }
             }
             yield f"data: {json.dumps(final_data)}\n\n"
@@ -402,10 +496,57 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
         model = model_cache["model"]
         processor = model_cache["processor"]
         
+        # Stage 0: Domain Matching
+        domain_match_result = None
+        domain_match_error = None
+        
+        try:
+            validation_jobs[job_id].update({
+                "stage": "domain_matching",
+                "progress": 0.05,
+                "current_step": "Running domain match..."
+            })
+            
+            frames = extract_frames(video_path, fps=request.domain_match_fps)
+            domain_match_result = randomized_domain_match(
+                frames=frames,
+                task_description=request.expected_task,
+                n=min(request.domain_match_samples, len(frames)),
+                model=model,
+                processor=processor
+            )
+            
+            validation_jobs[job_id].update({
+                "progress": 0.15,
+                "domain_match": domain_match_result,
+                "current_step": f"Domain match: {'PASS' if domain_match_result['overall_match'] else 'FAIL'} ({domain_match_result['match_percentage']:.1%})"
+            })
+            
+            # If domain match legitimately fails (rejection), stop early
+            if not domain_match_result['overall_match']:
+                validation_jobs[job_id].update({
+                    "status": "rejected",
+                    "stage": "domain_matching",
+                    "progress": 1.0,
+                    "current_step": "Video rejected: Does not match expected task domain",
+                    "domain_match": domain_match_result,
+                    "rejection_reason": f"Only {domain_match_result['match_percentage']:.1%} of sampled frames matched"
+                })
+                return
+                
+        except Exception as e:
+            # Domain match function failed - log error and continue with validation
+            domain_match_error = str(e)
+            validation_jobs[job_id].update({
+                "progress": 0.15,
+                "domain_match_error": domain_match_error,
+                "current_step": f"Domain match error: {domain_match_error} - Bypassing and continuing..."
+            })
+        
         # Stage 1: Parse scenes
         validation_jobs[job_id].update({
             "stage": "parsing_scenes",
-            "progress": 0.1,
+            "progress": 0.2,
             "current_step": "Detecting scene changes..."
         })
         
@@ -417,14 +558,14 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
         )
         
         validation_jobs[job_id].update({
-            "progress": 0.25,
+            "progress": 0.3,
             "scenes": scenes
         })
         
         # Stage 2: Analyze scenes
         validation_jobs[job_id].update({
             "stage": "analyzing_scenes",
-            "progress": 0.3,
+            "progress": 0.35,
             "current_step": "Starting scene analysis..."
         })
         
@@ -440,7 +581,7 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
         )
         
         validation_jobs[job_id].update({
-            "progress": 0.8,
+            "progress": 0.85,
             "verified_results": verified_results,
             "failed_results": failed_results
         })
@@ -448,7 +589,7 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
         # Stage 3: Validate task
         validation_jobs[job_id].update({
             "stage": "validating_task",
-            "progress": 0.85,
+            "progress": 0.9,
             "current_step": "Validating task with LLM..."
         })
         
@@ -460,11 +601,32 @@ async def process_validation_job(job_id: str, request: VideoValidationRequest):
         )
         
         # Complete
+        summary = {
+            "total_scenes": len(scenes),
+            "verified_scenes": len(verified_results),
+            "failed_scenes": len(failed_results),
+            "task_confirmed": validation_result['confirmed']
+        }
+        
+        # Add domain match results if available
+        if domain_match_result:
+            summary.update({
+                "domain_match_passed": domain_match_result['overall_match'],
+                "domain_match_percentage": domain_match_result['match_percentage'],
+                "domain_match_confidence": domain_match_result['confidence']
+            })
+        elif domain_match_error:
+            summary["domain_match_error"] = domain_match_error
+            summary["domain_match_bypassed"] = True
+        
         validation_jobs[job_id].update({
             "status": "completed",
             "stage": "done",
             "progress": 1.0,
             "validation_result": validation_result,
+            "domain_match": domain_match_result,
+            "domain_match_error": domain_match_error,
+            "summary": summary,
             "completed_at": datetime.now().isoformat()
         })
         

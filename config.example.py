@@ -22,6 +22,11 @@ DEFAULT_MAX_RETRIES = 3
 DEFAULT_MAX_FRAMES = 12
 DEFAULT_QUESTION_TEMPLATE = "What action(s) is happening in this scene? Be specific, not vague."
 
+# Domain Match Configuration (Initial Quick Validation)
+DEFAULT_DOMAIN_MATCH_SAMPLES = 5  # Number of frames to sample for quick validation
+DEFAULT_DOMAIN_MATCH_THRESHOLD = 0.6  # Percentage of frames that must match (0.0 to 1.0)
+DEFAULT_DOMAIN_MATCH_FPS = 0.2  # FPS for frame extraction (0.2 = 1 frame per 5 seconds)
+
 # Storage Configuration
 UPLOAD_DIR = "./uploaded_videos"
 MAX_UPLOAD_SIZE_MB = 500  # Maximum video upload size in MB
