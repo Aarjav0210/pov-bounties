@@ -9,3 +9,6 @@ For our data augmentation steps, refer to the ML model "sub-repos". Checkpoints 
 Traction test, experiment run during hackathon, was deployed on railway.
 
 For smooth deployment purposes, front end is on pov-bounties-frontend repo (will be shared too)
+
+
+NOTE: Requires at least an H100 to run the pipeline
