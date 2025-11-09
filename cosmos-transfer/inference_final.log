@@ -1,0 +1,3 @@
+usage: run_transfer.py [-h] -i INPUT -p PROMPT [-o OUTPUT] [-g GPUS]
+                       [--guidance GUIDANCE] [--edge-weight EDGE_WEIGHT]
+run_transfer.py: error: unrecognized arguments:     

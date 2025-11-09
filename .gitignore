@@ -1,12 +1,74 @@
 # bytecode / caches
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# environment files
+.env
+.env.local
+*.env
 
 # large artifacts
 *.ckpt
 *.npz
 *.pkl
+*.pth
+*.safetensors
+
+# output directories
+outputs/
+temp/
+temp_output/
+
+# cache directories
+.cache/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# model checkpoints and data
+models/
+checkpoints/
+data/
+
+# git subdirectories (nested repos) - exclude entire third-party repos
+cosmos-transfer/cosmos-transfer2.5/
+depth/Video-Depth-Anything/
+gsam/Grounded-Segment-Anything/
+gsam/GroundingDINO/
+gsam/segment-anything/
 
 # WiLoR data + checkpoint
 mano_est/mano_est_deploy/WiLoR/mano_data/
 mano_est/mano_est_deploy/WiLoR/pretrained_models/wilor_final.ckpt
+
+# Pixi environments and lock files
+.pixi/
+pixi.lock
+
+# Videos and media files
+*.mp4
+*.MP4
+*.avi
+*.mov
+*.mkv
+
+# Input/output directories with test data
+inputs/
+test_output/
+test_gsam_output/
+
+# Model weights
+weights/
+
+# Exclude docker and api (not part of pipeline)
+docker/
+api/

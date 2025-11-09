@@ -1,0 +1,23 @@
+[project]
+name = "cosmos-transfer"
+version = "0.1.0"
+description = "NVIDIA Cosmos Transfer 2.5 - Video Domain Randomization"
+channels = ["conda-forge", "nvidia", "pytorch"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.10.*"
+pip = ">=24.0"
+git = "*"
+cuda-toolkit = "12.*"
+pytorch = ">=2.5"
+pytorch-cuda = "12.*"
+torchvision = "*"
+ffmpeg = "*"
+
+[tasks]
+setup = "bash setup.sh"
+transfer = "python run_transfer.py"
+
+[activation]
+scripts = ["activate.sh"]

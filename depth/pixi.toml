@@ -1,0 +1,35 @@
+[workspace]
+name = "video-depth-anything"
+version = "0.1.0"
+description = "Video Depth Anything for temporal consistent depth estimation"
+channels = ["pytorch", "nvidia", "conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.10.*"
+pip = ">=24.0"
+pytorch = {version = ">=2.4,<2.7", channel = "pytorch"}
+pytorch-cuda = {version = "12.*", channel = "pytorch"}
+torchvision = {version = ">=0.19,<0.22", channel = "pytorch"}
+cuda-toolkit = ">=12,<13"
+numpy = ">=1.24,<2.0"
+matplotlib = "*"
+pillow = "*"
+git = "*"
+wget = "*"
+einops = "*"
+imageio = "*"
+imageio-ffmpeg = "*"
+tqdm = "*"
+
+[pypi-dependencies]
+opencv-python = "*"
+decord = "*"
+easydict = "*"
+
+[tasks]
+setup = "bash setup.sh"
+depth = "python run.py"
+
+[activation]
+scripts = ["activate.sh"]

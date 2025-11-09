@@ -1,0 +1,9 @@
+{
+    "name": "egocentric_test",
+    "prompt": "A photorealistic robotic laboratory scene with warm lighting",
+    "video_path": "/home/paperspace/cosmos-transfer/cosmos-transfer2.5/assets/robot_example/robot_input.mp4",
+    "guidance": 3.0,
+    "edge": {
+        "control_weight": 1.0
+    }
+}
