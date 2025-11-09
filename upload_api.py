@@ -104,9 +104,13 @@ async def generate_upload_url(
     if clean_venmo_id.startswith('@'):
         clean_venmo_id = clean_venmo_id[1:]
     
+    # Generate unique submission ID first
+    file_id = str(uuid.uuid4())
+    
     # Get file extension
     file_extension = Path(filename).suffix
-    s3_filename = f"{clean_venmo_id}{file_extension}"
+    # Create unique filename with submission ID to allow duplicates
+    s3_filename = f"{clean_venmo_id}_{file_id}{file_extension}"
     
     # Check AWS credentials
     aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
@@ -115,9 +119,6 @@ async def generate_upload_url(
     
     if not aws_access_key or not aws_secret_key:
         raise HTTPException(status_code=503, detail="S3 upload not configured")
-    
-    # Generate unique submission ID
-    file_id = str(uuid.uuid4())
     
     try:
         # Create S3 client with signature version 4 (required for presigned URLs)
@@ -180,7 +181,7 @@ async def confirm_upload(
 ):
     """
     Confirm that upload to S3 was successful
-    Updates submission status
+    Updates submission status and adds metadata to S3 object
     """
     print(f"✅ Upload confirmed for file_id: {file_id}")
     
@@ -195,6 +196,44 @@ async def confirm_upload(
         
         with metadata_path.open("w") as f:
             json.dump(metadata, f, indent=2)
+        
+        # Update S3 object metadata
+        aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        s3_bucket = os.getenv('S3_BUCKET_NAME', 'pepper-videos')
+        
+        if aws_access_key and aws_secret_key:
+            try:
+                from botocore.config import Config
+                s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=aws_access_key,
+                    aws_secret_access_key=aws_secret_key,
+                    region_name=os.getenv('AWS_REGION', 'us-east-2'),
+                    config=Config(signature_version='s3v4')
+                )
+                
+                # Copy object to itself with updated metadata
+                s3_filename = metadata["filename"]
+                s3_client.copy_object(
+                    Bucket=s3_bucket,
+                    CopySource={'Bucket': s3_bucket, 'Key': s3_filename},
+                    Key=s3_filename,
+                    Metadata={
+                        'name': metadata["name"],
+                        'email': metadata["email"],
+                        'venmo_id': metadata["venmo_id"],
+                        'submission_id': file_id,
+                        'submitted_at': metadata["submitted_at"],
+                        'uploaded_at': metadata["uploaded_at"]
+                    },
+                    MetadataDirective='REPLACE'
+                )
+                
+                print(f"✅ S3 metadata updated for: {s3_filename}")
+            except ClientError as e:
+                print(f"⚠️  Failed to update S3 metadata: {e}")
+                # Don't fail the request if metadata update fails
         
         return {
             "message": "Upload confirmed",
@@ -235,18 +274,19 @@ async def submit_bounty_video(
     if clean_venmo_id.startswith('@'):
         clean_venmo_id = clean_venmo_id[1:]
     
+    # Generate unique submission ID first
+    file_id = str(uuid.uuid4())
+    
     # Get file extension
     file_extension = Path(file.filename).suffix
     
-    # Create S3 filename as venmoID.mp4
-    s3_filename = f"{clean_venmo_id}{file_extension}"
+    # Create unique S3 filename with UUID to allow duplicates
+    s3_filename = f"{clean_venmo_id}_{file_id}{file_extension}"
     
     # Check if AWS credentials are configured
     aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
     aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
     s3_bucket = os.getenv('S3_BUCKET_NAME', 'pov-bounties')
-    
-    file_id = str(uuid.uuid4())
     s3_url = None
     
     try:
